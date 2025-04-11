@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { FaMapMarkedAlt, FaRoute, FaHotel, FaInfoCircle } from "react-icons/fa";
+import { FaMapMarkedAlt, FaRoute, FaHotel, FaInfoCircle, FaCompass } from "react-icons/fa";
 
 // Import components
 import Map from "./components/Map";
 import NearbyPlaces from "./components/NearbyPlaces";
 import Recommendations from "./components/Recommendations";
+import AroundMe from "./components/AroundMe";
 
 function App() {
   // State
@@ -14,6 +15,7 @@ function App() {
   const [activeTab, setActiveTab] = useState(0);
   const [sourceInputValue, setSourceInputValue] = useState('');
   const [destinationInputValue, setDestinationInputValue] = useState('');
+  const [currentLocation, setCurrentLocation] = useState(null);
 
   // Handle route calculation
   const handleRouteCalculated = (source, destination, route) => {
@@ -24,11 +26,6 @@ function App() {
     // Store the input values in state
     setSourceInputValue(source.name);
     setDestinationInputValue(destination.name);
-    
-    // Remove automatic switching to nearby places tab
-    // setTimeout(() => {
-    //   setActiveTab(1);
-    // }, 1000);
   };
 
   // Handle input value changes
@@ -38,6 +35,11 @@ function App() {
     } else if (type === 'destination') {
       setDestinationInputValue(value);
     }
+  };
+
+  // Update current location
+  const updateCurrentLocation = (location) => {
+    setCurrentLocation(location);
   };
 
   // Tab switching
@@ -84,6 +86,16 @@ function App() {
           </button>
           <button
             className={`px-4 py-2 flex items-center ${
+              activeTab === 3
+                ? "border-b-2 border-teal-500 text-teal-600 font-medium"
+                : "text-gray-600 hover:text-teal-500"
+            }`}
+            onClick={() => handleTabClick(3)}
+          >
+            <FaCompass className="mr-2" /> Around Me
+          </button>
+          <button
+            className={`px-4 py-2 flex items-center ${
               activeTab === 2
                 ? "border-b-2 border-teal-500 text-teal-600 font-medium"
                 : "text-gray-600 hover:text-teal-500"
@@ -104,6 +116,7 @@ function App() {
                 sourceValue={sourceInputValue}
                 destinationValue={destinationInputValue}
                 onInputValueChange={handleInputValueChange}
+                onLocationUpdate={updateCurrentLocation}
               />
             </div>
           )}
@@ -112,6 +125,13 @@ function App() {
           {activeTab === 1 && (
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <NearbyPlaces destination={destinationLocation} />
+            </div>
+          )}
+
+          {/* Around Me Tab */}
+          {activeTab === 3 && (
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <AroundMe currentLocation={currentLocation} />
             </div>
           )}
 
@@ -124,9 +144,8 @@ function App() {
                 </h2>
 
                 <p className="text-lg mb-4">
-                  Traveler Guide is an application designed to help travelers
-                  plan their journeys with intelligent routing and nearby place
-                  recommendations.
+                  WanderWise is an intelligent travel application designed to help travelers
+                  plan their journeys with smart routing, location discovery, and travel recommendations.
                 </p>
 
                 <h3 className="text-xl font-semibold mb-3 mt-6">
@@ -135,17 +154,25 @@ function App() {
 
                 <div className="pl-4 mb-6">
                   <p className="mb-2">
-                    • Interactive Google Maps with route visualization
+                    • Interactive Google Maps with multiple route visualization options
                   </p>
                   <p className="mb-2">
-                    • Optimal route calculation using Dijkstra's and A*
-                    algorithms
+                    • Multiple routing algorithms (A*, Dijkstra's, BFS, DFS) for different journey needs
                   </p>
                   <p className="mb-2">
-                    • Place recommendations (hotels, restaurants, gas stations)
+                    • Various transport modes (driving, flying, walking, transit)
                   </p>
                   <p className="mb-2">
-                    • Route preferences (no tolls, scenic routes)
+                    • Place recommendations near destinations (hotels, restaurants, etc.)
+                  </p>
+                  <p className="mb-2">
+                    • "Around Me" feature to discover places near your current location
+                  </p>
+                  <p className="mb-2">
+                    • Local currency conversion for international travelers
+                  </p>
+                  <p className="mb-2">
+                    • Route preferences (avoid tolls, scenic routes)
                   </p>
                 </div>
 
@@ -154,32 +181,64 @@ function App() {
                 <div className="pl-4 mb-6">
                   <p className="mb-2">
                     • Frontend: React.js with Google Maps JavaScript API,
-                    Tailwind CSS
+                    Tailwind CSS, React Icons
                   </p>
                   <p className="mb-2">• Backend: Node.js with Express</p>
                   <p className="mb-2">• Database: MongoDB</p>
                 </div>
 
                 <div className="mt-5 p-3 bg-yellow-50 text-yellow-800 rounded-md">
-                  <h4 className="font-bold">Dijkstra vs A* Algorithms</h4>
-                  <p className="text-sm mt-1">
-                    Both algorithms find the shortest path between two points,
-                    but they work differently:
+                  <h4 className="font-bold mb-2">Routing Algorithms Compared</h4>
+                  <p className="text-sm">
+                    WanderWise implements four different pathfinding algorithms, each with unique characteristics:
+                  </p>
+                  <ul className="list-disc pl-5 mt-2 text-sm space-y-2">
+                    <li>
+                      <b>A* Algorithm</b>: The most efficient option that uses heuristics to 
+                      estimate the best path to the destination. Combines Dijkstra's algorithm with 
+                      additional information about the target location to find optimal routes faster.
+                    </li>
+                    <li>
+                      <b>Dijkstra's Algorithm</b>: Explores all possible paths by prioritizing the 
+                      shortest distances from the starting point. Guaranteed to find the shortest path 
+                      but may explore unnecessary areas.
+                    </li>
+                    <li>
+                      <b>BFS (Breadth-First Search)</b>: Explores routes level-by-level from the 
+                      origin, making it good for finding the path with the fewest segments or turns. 
+                      Effective for shorter distances in dense networks.
+                    </li>
+                    <li>
+                      <b>DFS (Depth-First Search)</b>: Explores routes by going as far as possible 
+                      along a branch before backtracking. Can discover interesting alternative routes 
+                      and scenic detours that other algorithms might miss.
+                    </li>
+                  </ul>
+                  <p className="text-sm mt-3">
+                    Try different algorithms and transport modes to see how routes vary. The visual 
+                    color coding (blue for A*, red for Dijkstra, green for BFS, orange for DFS) helps 
+                    you identify which algorithm calculated your route.
+                  </p>
+                </div>
+
+                <div className="mt-5 p-3 bg-blue-50 text-blue-800 rounded-md">
+                  <h4 className="font-bold mb-2">Location-Based Features</h4>
+                  <p className="text-sm">
+                    WanderWise offers two ways to discover places around you:
                   </p>
                   <ul className="list-disc pl-5 mt-2 text-sm">
                     <li>
-                      <b>Dijkstra's Algorithm</b>: Explores all possible paths
-                      equally in all directions until it finds the destination
+                      <b>Nearby Places</b>: Shows points of interest around your destination, 
+                      perfect for travel planning before you arrive.
                     </li>
                     <li>
-                      <b>A* Algorithm</b>: Uses heuristics to prioritize paths
-                      that seem more likely to lead to the destination, making
-                      it generally more efficient
+                      <b>Around Me</b>: Displays hotels, restaurants, gas stations and shops near 
+                      your current location with real-time data, ideal for travelers on the go.
                     </li>
                   </ul>
                   <p className="text-sm mt-2">
-                    In practical use on road networks, their results are often
-                    similar, but A* typically reaches the solution faster.
+                    Both features include ratings, estimated prices in local currency, and filtering options 
+                    to help you make informed decisions during your journey.
                   </p>
                 </div>
               </div>

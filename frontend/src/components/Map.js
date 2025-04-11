@@ -27,23 +27,13 @@ import {
 } from "@react-google-maps/api";
 
 import { routesService } from "../services/api";
-
-// Map container style
-const mapContainerStyle = {
-  width: "100%",
-  height: "calc(100vh - 160px)",
-};
-
-// Default center position (San Francisco)
-const defaultCenter = { lat: 37.7749, lng: -122.4194 };
-
-// Map options
-const mapOptions = {
-  zoomControl: false,
-  streetViewControl: false,
-  mapTypeControl: false,
-  fullscreenControl: false,
-};
+import { 
+  GOOGLE_MAPS_LIBRARIES, 
+  GOOGLE_MAPS_API_KEY, 
+  MAP_OPTIONS, 
+  MAP_CONTAINER_STYLE, 
+  DEFAULT_CENTER 
+} from "../utils/mapsConfig";
 
 // Algorithm path colors
 const algorithmColors = {
@@ -61,11 +51,11 @@ const transportSpeeds = {
   "transit": 35,
 };
 
-const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueChange }) => {
+const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueChange, onLocationUpdate }) => {
   // Add API loader
   const { isLoaded } = useJsApiLoader({
-    googleMapsApiKey: process.env.REACT_APP_GOOGLE_MAPS_API_KEY,
-    libraries: ['places'],
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   // References
@@ -105,6 +95,26 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
   const showToast = (message, type = "success") => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
+  };
+
+  // Get address from coordinates
+  const getAddressFromCoordinates = async (coords) => {
+    try {
+      const geocoder = new google.maps.Geocoder();
+      const response = await new Promise((resolve, reject) => {
+        geocoder.geocode({ location: coords }, (results, status) => {
+          if (status === google.maps.GeocoderStatus.OK) {
+            resolve(results[0].formatted_address);
+          } else {
+            reject(new Error("Geocoding failed"));
+          }
+        });
+      });
+      return response;
+    } catch (error) {
+      console.error("Error getting address:", error);
+      return "Current Location";
+    }
   };
 
   // Calculate route using Google Directions Service
@@ -397,7 +407,52 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
   }, [sourceValue, destinationValue]);
 
   // Center map on current position
-  const getCurrentLocation = () => {
+  const getCurrentLocation = async () => {
+    if (navigator.geolocation) {
+      try {
+        const position = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            (error) => reject(error)
+          );
+        });
+
+        // Set current location first time we get it
+        if (!currentLocation) {
+          setCurrentLocation(position);
+          
+          // Pass location to parent component
+          if (onLocationUpdate) {
+            onLocationUpdate(position);
+          }
+        }
+        
+        showToast("Location found!");
+        
+        // Set the source field to current location
+        if (sourceRef.current) {
+          const address = await getAddressFromCoordinates(position);
+          sourceRef.current.value = address;
+          handleInputChange('source', address);
+        }
+        
+        if (map) {
+          map.setCenter(position);
+          map.setZoom(13);
+        }
+      } catch (error) {
+        console.error("Error getting current location:", error);
+        showToast("Unable to retrieve your location", "error");
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      showToast("Error: Your browser doesn't support geolocation", "error");
+    }
+  };
+
+  // Effect when component mounts - try to get current location automatically
+  useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -406,17 +461,18 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
             lng: position.coords.longitude,
           };
           setCurrentLocation(pos);
-          map.panTo(pos);
-          map.setZoom(14);
+          
+          // Pass current location to parent component
+          if (onLocationUpdate) {
+            onLocationUpdate(pos);
+          }
         },
-        () => {
-          showToast("Error: Geolocation permission denied", "error");
+        (error) => {
+          console.error("Geolocation error:", error);
         }
       );
-    } else {
-      showToast("Error: Your browser doesn't support geolocation", "error");
     }
-  };
+  }, []);
 
   // Handle route preference changes
   const handlePreferenceChange = (e) => {
@@ -503,6 +559,13 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
     }
   };
 
+  // Handle input changes and pass to parent component
+  const handleInputChange = (type, value) => {
+    if (onInputValueChange) {
+      onInputValueChange(type, value);
+    }
+  };
+
   // Render loading state if Google Maps isn't loaded yet
   if (!isLoaded) {
     return <div>Loading Maps...</div>;
@@ -513,10 +576,10 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
       {/* Main map container */}
       <div className="relative w-full h-full">
         <GoogleMap
-          mapContainerStyle={mapContainerStyle}
-          center={defaultCenter}
+          mapContainerStyle={MAP_CONTAINER_STYLE}
+          center={DEFAULT_CENTER}
           zoom={10}
-          options={mapOptions}
+          options={MAP_OPTIONS}
           onLoad={onMapLoad}
         >
           {directionsResponse && (

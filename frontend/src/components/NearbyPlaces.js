@@ -8,8 +8,16 @@ import {
   FaStar,
   FaMapMarkerAlt
 } from "react-icons/fa";
+import { useJsApiLoader } from "@react-google-maps/api";
+import { GOOGLE_MAPS_LIBRARIES, GOOGLE_MAPS_API_KEY } from "../utils/mapsConfig";
 
 const NearbyPlaces = ({ destination }) => {
+  // Add API loader to ensure consistent configuration
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+    libraries: GOOGLE_MAPS_LIBRARIES,
+  });
+
   // State
   const [nearbyPlaces, setNearbyPlaces] = useState({
     hotels: [],
@@ -279,6 +287,18 @@ const NearbyPlaces = ({ destination }) => {
     return `${localCurrency.symbol}${localMinPrice}-${localMaxPrice}${unit}`;
   };
 
+  // If Google Maps isn't loaded yet, show loading state
+  if (!isLoaded) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading Google Maps...</p>
+        </div>
+      </div>
+    );
+  }
+
   // If no destination, prompt user to calculate a route first
   if (!destination) {
     return (
@@ -308,19 +328,19 @@ const NearbyPlaces = ({ destination }) => {
       {/* Radius selector */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-1">Search Radius</label>
-        <div className="flex items-center">
-          <select
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min="500"
+            max="10000"
+            step="500"
             value={searchRadius}
             onChange={(e) => handleRadiusChange(Number(e.target.value))}
-            className="form-select rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring focus:ring-teal-200 focus:ring-opacity-50"
-          >
-            <option value={500}>500m</option>
-            <option value={1000}>1km</option>
-            <option value={3000}>3km</option>
-            <option value={5000}>5km</option>
-            <option value={10000}>10km</option>
-          </select>
-          <FaSearch className="ml-2 text-gray-400" />
+            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+          />
+          <span className="text-sm whitespace-nowrap">
+            {(searchRadius / 1000).toFixed(1)} km
+          </span>
         </div>
       </div>
 
