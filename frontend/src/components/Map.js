@@ -23,8 +23,7 @@ import {
   DirectionsRenderer,
   InfoWindow,
   Polyline,
-  useJsApiLoader,
-  Circle
+  useJsApiLoader
 } from "@react-google-maps/api";
 
 import { routesService } from "../services/api";
@@ -58,6 +57,18 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
     libraries: GOOGLE_MAPS_LIBRARIES,
   });
+
+  // Verify library loading on component mount
+  useEffect(() => {
+    if (isLoaded) {
+      // Check if geometry library is available
+      if (!window.google || !window.google.maps || !window.google.maps.geometry || !window.google.maps.geometry.spherical) {
+        console.warn("Google Maps geometry library not fully loaded. Some distance calculations will use fallback method.");
+      } else {
+        console.log("Google Maps geometry library successfully loaded.");
+      }
+    }
+  }, [isLoaded]);
 
   // References
   const sourceRef = useRef(null);
@@ -98,6 +109,29 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
     setTimeout(() => setToast({ show: false, message: "", type: "" }), 3000);
   };
 
+  // Fallback function to calculate distance between two points using the Haversine formula
+  const calculateHaversineDistance = (point1, point2) => {
+    const toRad = (value) => (value * Math.PI) / 180;
+    const R = 6371e3; // Earth's radius in meters
+    
+    const lat1 = point1.lat;
+    const lon1 = point1.lng;
+    const lat2 = point2.lat;
+    const lon2 = point2.lng;
+    
+    const φ1 = toRad(lat1);
+    const φ2 = toRad(lat2);
+    const Δφ = toRad(lat2 - lat1);
+    const Δλ = toRad(lon2 - lon1);
+    
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    
+    return R * c; // Distance in meters
+  };
+
   // Get address from coordinates
   const getAddressFromCoordinates = async (coords) => {
     try {
@@ -128,6 +162,8 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
     setIsLoading(true);
     setAirports(null);
     setFlightPath(null);
+    // Hide current location marker when calculating a route
+    setCurrentLocation(null);
     // Close the algorithm panel after starting calculation
     setShowAlgorithmInfo(false);
 
@@ -206,11 +242,20 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
       let distanceValue, durationValue, directionsResult;
       
       if (transportMode === "flying") {
-        // For flights, calculate direct distance and find airports
-        const directDistance = google.maps.geometry.spherical.computeDistanceBetween(
-          new google.maps.LatLng(sourceCoords),
-          new google.maps.LatLng(destCoords)
-        );
+        // For flights, calculate direct distance - using our fallback if spherical is not available
+        let directDistance;
+        try {
+          // Try to use Google's geometry library if available
+          directDistance = google.maps.geometry.spherical.computeDistanceBetween(
+            new google.maps.LatLng(sourceCoords),
+            new google.maps.LatLng(destCoords)
+          );
+        } catch (error) {
+          // Fallback to our Haversine implementation if Google's geometry is not available
+          console.warn("Google geometry library not available, using fallback calculation");
+          directDistance = calculateHaversineDistance(sourceCoords, destCoords);
+        }
+        
         distanceValue = directDistance;
         durationValue = (directDistance / 1000) / transportSpeeds.flying * 3600;
         
@@ -367,6 +412,28 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
     setAirports(null);
     setDistance("");
     setDuration("");
+    
+    // Restore current location if needed
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const pos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setCurrentLocation(pos);
+          
+          // Pass current location to parent component
+          if (onLocationUpdate) {
+            onLocationUpdate(pos);
+          }
+        },
+        (error) => {
+          console.error("Geolocation error:", error);
+        }
+      );
+    }
+    
     // Update parent state
     onInputValueChange('source', '');
     onInputValueChange('destination', '');
@@ -410,17 +477,11 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
   // Center map on current position
   const getCurrentLocation = async () => {
     if (navigator.geolocation) {
-      setIsLoading(true);
       try {
         const position = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            (error) => reject(error),
-            { 
-              enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 0
-            }
+            (error) => reject(error)
           );
         });
 
@@ -434,7 +495,7 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
           }
         }
         
-        showToast("Exact location found!");
+        showToast("Location found!");
         
         // Set the source field to current location
         if (sourceRef.current) {
@@ -445,11 +506,11 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
         
         if (map) {
           map.setCenter(position);
-          map.setZoom(16); // Higher zoom for more precise location view
+          map.setZoom(13);
         }
       } catch (error) {
         console.error("Error getting current location:", error);
-        showToast("Unable to retrieve your exact location", "error");
+        showToast("Unable to retrieve your location", "error");
       } finally {
         setIsLoading(false);
       }
@@ -476,11 +537,6 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
         },
         (error) => {
           console.error("Geolocation error:", error);
-        },
-        { 
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
         }
       );
     }
@@ -718,31 +774,35 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
             </InfoWindow>
           )}
 
-          {/* Current location marker with accuracy circle */}
-          {currentLocation && (
+          {/* Current location marker - using a circle similar to Google Maps standard blue location indicator */}
+          {currentLocation && !startMarker && !endMarker && (
             <>
+              {/* Accuracy circle */}
+              <Marker
+                position={currentLocation}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: '#4285F4',
+                  fillOpacity: 0.2,
+                  strokeColor: '#4285F4',
+                  strokeOpacity: 0.5,
+                  strokeWeight: 1,
+                  scale: 12
+                }}
+                clickable={false}
+              />
+              {/* Center dot */}
               <Marker
                 position={currentLocation}
                 icon={{
                   path: google.maps.SymbolPath.CIRCLE,
                   fillColor: '#4285F4',
                   fillOpacity: 1,
-                  scale: 8,
                   strokeColor: '#FFFFFF',
                   strokeWeight: 2,
+                  scale: 6
                 }}
-                title="Your Exact Location"
-              />
-              <Circle 
-                center={currentLocation}
-                radius={50}
-                options={{
-                  fillColor: '#4285F4',
-                  fillOpacity: 0.15,
-                  strokeColor: '#4285F4',
-                  strokeOpacity: 0.5,
-                  strokeWeight: 1,
-                }}
+                title="Your location"
               />
             </>
           )}

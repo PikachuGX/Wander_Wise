@@ -37,22 +37,9 @@ function App() {
     }
   };
 
-  // Update current location with high precision
+  // Update current location
   const updateCurrentLocation = (location) => {
-    // Ensure we're storing the most accurate location data
-    if (location && typeof location.lat === 'number' && typeof location.lng === 'number') {
-      // Keep the full precision of coordinates
-      setCurrentLocation({
-        lat: location.lat,
-        lng: location.lng,
-        // If there's a name property, keep it
-        ...(location.name && { name: location.name })
-      });
-      
-      console.log("Updated current location with precise coordinates:", location);
-    } else {
-      console.warn("Received invalid location data:", location);
-    }
+    setCurrentLocation(location);
   };
 
   // Tab switching
