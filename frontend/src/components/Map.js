@@ -23,7 +23,8 @@ import {
   DirectionsRenderer,
   InfoWindow,
   Polyline,
-  useJsApiLoader
+  useJsApiLoader,
+  Circle
 } from "@react-google-maps/api";
 
 import { routesService } from "../services/api";
@@ -409,11 +410,17 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
   // Center map on current position
   const getCurrentLocation = async () => {
     if (navigator.geolocation) {
+      setIsLoading(true);
       try {
         const position = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            (error) => reject(error)
+            (error) => reject(error),
+            { 
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            }
           );
         });
 
@@ -427,7 +434,7 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
           }
         }
         
-        showToast("Location found!");
+        showToast("Exact location found!");
         
         // Set the source field to current location
         if (sourceRef.current) {
@@ -438,11 +445,11 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
         
         if (map) {
           map.setCenter(position);
-          map.setZoom(13);
+          map.setZoom(16); // Higher zoom for more precise location view
         }
       } catch (error) {
         console.error("Error getting current location:", error);
-        showToast("Unable to retrieve your location", "error");
+        showToast("Unable to retrieve your exact location", "error");
       } finally {
         setIsLoading(false);
       }
@@ -469,6 +476,11 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
         },
         (error) => {
           console.error("Geolocation error:", error);
+        },
+        { 
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
         }
       );
     }
@@ -706,21 +718,33 @@ const Map = ({ onRouteCalculated, sourceValue, destinationValue, onInputValueCha
             </InfoWindow>
           )}
 
-          {/* Current location marker */}
+          {/* Current location marker with accuracy circle */}
           {currentLocation && (
-            <Marker
-              position={currentLocation}
-              icon={{
-                url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-                scaledSize: new google.maps.Size(40, 40)
-              }}
-              title="Your location"
-              label={{
-                text: "👤",
-                fontSize: "16px",
-                fontWeight: "bold"
-              }}
-            />
+            <>
+              <Marker
+                position={currentLocation}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  fillColor: '#4285F4',
+                  fillOpacity: 1,
+                  scale: 8,
+                  strokeColor: '#FFFFFF',
+                  strokeWeight: 2,
+                }}
+                title="Your Exact Location"
+              />
+              <Circle 
+                center={currentLocation}
+                radius={50}
+                options={{
+                  fillColor: '#4285F4',
+                  fillOpacity: 0.15,
+                  strokeColor: '#4285F4',
+                  strokeOpacity: 0.5,
+                  strokeWeight: 1,
+                }}
+              />
+            </>
           )}
         </GoogleMap>
 

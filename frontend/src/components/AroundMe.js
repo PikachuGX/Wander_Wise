@@ -163,8 +163,13 @@ const AroundMe = ({ currentLocation }) => {
         },
         (error) => {
           console.error("Geolocation error:", error);
-          setError("Unable to get your location. Please enable location services and try again.");
+          setError("Unable to get your exact location. Please enable high-accuracy location services and try again.");
           setLoading(false);
+        },
+        { 
+          enableHighAccuracy: true,  // Request highest possible accuracy
+          timeout: 10000,            // Time to wait for a position
+          maximumAge: 0              // Don't accept cached positions
         }
       );
     } else {
@@ -309,11 +314,11 @@ const AroundMe = ({ currentLocation }) => {
           {/* Current Location */}
           <div className="mb-5">
             <div className="flex justify-between items-center mb-2">
-              <h3 className="font-medium">Your Location</h3>
+              <h3 className="font-medium">Your Exact Location</h3>
               <button 
                 onClick={getCurrentLocation} 
                 className="p-2 bg-teal-100 text-teal-600 rounded-full hover:bg-teal-200"
-                title="Refresh location"
+                title="Refresh exact location"
               >
                 <FaLocationArrow />
               </button>
@@ -323,12 +328,15 @@ const AroundMe = ({ currentLocation }) => {
               <div className="text-sm bg-gray-100 p-2 rounded">
                 {countryName || "Location detected"}
                 <div className="text-xs text-gray-500 mt-1">
-                  {userLocation.lat.toFixed(5)}, {userLocation.lng.toFixed(5)}
+                  Latitude: {userLocation.lat.toFixed(6)}
+                </div>
+                <div className="text-xs text-gray-500">
+                  Longitude: {userLocation.lng.toFixed(6)}
                 </div>
               </div>
             ) : (
               <div className="text-sm text-orange-500">
-                {error || "Detecting your location..."}
+                {error || "Detecting your precise location..."}
               </div>
             )}
           </div>
